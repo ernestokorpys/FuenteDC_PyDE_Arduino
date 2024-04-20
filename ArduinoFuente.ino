@@ -16,14 +16,17 @@ Adafruit_ADS1115 ads; // Creamos un objeto ADS1115
 
 unsigned long lastScreenChangeTime = 0; // Variable para almacenar el tiempo del último cambio de pantalla
 int SCREEN = 0; // Variable que indica la pantalla actual
-int menuSelection = 1; // Variable que indica la selección actual del menú
+int menuSelection = 1; // Variable que indica la selección actual del menú y ayuda a moverse
 const float MAX_TENSION = 30.00;
 const float MAX_CORRIENTE = 3.00;
 float Tension = 0.00;
 float Corriente = 0.000;
+int Tiempo = 0;
+int TiempoTranscurrido = 0;
 char tensString[5] = "    "; // Almacenar la tensión como una cadena de caracteres de 4 dígitos
 char corrienteString[5] = "    "; // Almacenar la corriente como una cadena de caracteres de 4 dígitos
-bool edit_values = false; 
+bool edit_values = false;
+int Mode=0; //0.Sin Modo; 1. Tensión; 2. Corriente; 3. Rampa Define el modo de funcionamiento
 const byte ROWS = 4;
 const byte COLUMNS = 4;
 char keys[ROWS][COLUMNS] = {
@@ -39,6 +42,7 @@ Keypad teclado = Keypad(makeKeymap(keys), rowPins, columnPins, ROWS, COLUMNS);
 char key;
 volatile char lastKeyPress = ' '; // Variable para almacenar la última tecla pulsada
 int listValue[8] = {0}; // Lista para almacenar los valores de tensión y corriente
+int listRamp[6] = {0}; //Almacena valores tension y tiempo 
 int index=0;
 bool state=false;
 void setup() {
@@ -71,8 +75,8 @@ void loop() {
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
-    Serial.print("Numero de Screen: ");
-    Serial.println(SCREEN);
+    Serial.print("Tiempo: ");
+    Serial.println(Tiempo);
     switch (SCREEN) {
       case 0:
         SCREEN0();
@@ -99,21 +103,50 @@ void loop() {
 void Keyboard(int key) {
   if (edit_values == true) {
     if (key >= '0' && key <= '9') {
+      if(menuSelection!=3){
       updateValues(key);
       if (index == 8) { // Si se han ingresado todos los valores
         edit_values = false; // Finalizar la edición de valores
         if(updateFloatValues()){
-          SCREEN=1;
+          switch (menuSelection){
+            case 1:
+              SCREEN=1;
+              break;
+            case 2:
+              SCREEN=2;
+              break;
+          }
         }else{
           SCREEN=4;
         } // Actualizar los valores de tensión y corriente
+      }
+      } else {
+        updateRampValues(key);
+         if (index == 6) { // Si se han ingresado todos los valores
+          edit_values = false; // Finalizar la edición de valores
+          if(updateRampFloatValues()){
+            SCREEN=3;
+          } else{
+            SCREEN=4;
+          }
+        }
+        //Funcion para cargar el valor de tension y el tiempo en seg
       }
     }
   }
   if (key == 'A' && SCREEN != 0) {
     edit_values = true;
     SCREEN = 5; // Cambiar a la pantalla de visualización de valores
-    index = 0; // Restablecer el índice al comenzar la edición de valores
+    switch (menuSelection) {
+      case 1: 
+      index=0;
+      break;
+      case 2:
+      index=4;
+      break;
+      case 3:
+      index=0;
+    }
     memset(tensString, ' ', sizeof(tensString)); // Limpiar el arreglo de la tensión
     memset(corrienteString, ' ', sizeof(corrienteString)); // Limpiar el arreglo de la corriente
     memset(listValue, 0, sizeof(listValue)); // Reiniciar la lista de valores
@@ -128,10 +161,31 @@ void Keyboard(int key) {
     SCREEN = menuSelection;
   }
   if (key == 'D') {
+    if (SCREEN==0){
+      state=false;
+      Mode=0;
+    }
     SCREEN = 0;
   }
   if (key == '#' && SCREEN!=0) {
     state = true;
+    switch (menuSelection){
+      case 0:
+        //No hace nada
+        break;
+      case 1:
+        Mode=1;
+        //Limita tension y corriente.
+        break;
+      case 2:
+        Mode=2;
+        //Limita tensión.
+        break;
+      case 3:
+        Mode=3;
+        //Hace rampa
+        break;
+      }
   }
 }
 // Displays mostrando cosas
@@ -151,7 +205,21 @@ void SCREEN0() {
   if (menuSelection == 3) {
     display.print("* ");
   }
-  display.println("3. Rampa");
+  display.print("3. Rampa   ");
+  switch (Mode) {
+    case 0:
+    display.print("OFF");
+    break;
+    case 1:
+    display.print("T");
+    break;
+    case 2:
+    display.print("C");
+    break;
+    case 3:
+    display.print("R");
+    break;
+  }
 }
 void SCREEN1() {
   display.setCursor(0, 0);
@@ -168,12 +236,26 @@ void SCREEN1() {
 
 void SCREEN2() {
   display.setCursor(0, 0);
-  display.println("Usted esta en la corriente");
+  display.print("Real: 1.5");
+  display.setCursor(0, 10);
+  display.print("Deseada: ");
+  display.print(Corriente); // Mostrar los dígitos ingresados para la tensión
+  display.setCursor(0, 20);
+  display.print("MODO CORRIENTE  #ON");
 }
 
 void SCREEN3() {
   display.setCursor(0, 0);
-  display.println("Usted esta en la Rampa");
+  display.print("T. R:15.55 ");
+  display.print("  D: ");
+  display.print(Tension); // Mostrar los dígitos ingresados para la tensión
+  display.setCursor(0, 10);
+  display.print("t. R:");
+  display.print(TiempoTranscurrido);
+  display.print("  D:");
+  display.print(Tiempo);
+  display.setCursor(0, 20);
+  display.print("MODO RAMPA");
 }
 
 void SCREEN4() {
@@ -181,7 +263,14 @@ void SCREEN4() {
   display.println("Valores Invalidos");
   display.setCursor(0, 10);
   display.println("Presione Tecla");
-  SCREEN=1;
+  switch (menuSelection) {
+      case 1: 
+      SCREEN=1;
+      break;
+      case 2:
+      SCREEN=2;
+      break;
+    }
 }
 
 void SCREEN5() {
@@ -189,25 +278,53 @@ void SCREEN5() {
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 0);
-  display.print("TENSION: ");
-  // Mostrar los dígitos ingresados para la tensión
-  for (int i = 0; i < 4; i++) {
-    display.print(tensString[i]);
+  
+  switch (menuSelection) {
+    case 1:
+      display.print("TENSION: ");
+      for (int i = 0; i < 4; i++) {   // Mostrar los dígitos ingresados para la tensión
+        display.print(tensString[i]);
+      }
+      // Mostrar el separador decimal
+      display.print(".");
+      display.print(tensString[2]); // Mostrar el tercer dígito como el decimal
+      // Mostrar los dígitos ingresados para la corriente
+      display.setCursor(0, 10);
+      display.print("CORRIENTE: ");
+      for (int i = 0; i < 4; i++) {
+        display.print(corrienteString[i]);
+      }
+      // Mostrar el separador decimal
+      display.print(".");
+      display.print(corrienteString[1]); // Mostrar el segundo dígito como el decimal
+      display.setCursor(0, 20);
+      display.print("EDITAR VALORES: ");
+      break;
+      
+    case 2:
+      display.print("Corriente MAX: ");
+      for (int i = 0; i < 4; i++) {
+        display.print(corrienteString[i]);
+      }
+      break;
+      
+    case 3:
+      display.print("TENSION: ");
+      for (int i = 0; i < 4; i++) {
+        display.print(tensString[i]);
+      }
+      // Mostrar el separador decimal
+      display.print(".");
+      display.print(tensString[2]); // Mostrar el tercer dígito como el decimal
+      // Mostrar los dígitos ingresados para el tiempo
+      display.setCursor(0, 10);
+      display.print("TIEMPO: ");
+      for (int i = 4; i < 6; i++) {
+        display.print(corrienteString[i - 4]);
+      }
+      display.print(" s");
+      break;
   }
-  // Mostrar el separador decimal
-  display.print(".");
-  display.print(tensString[2]); // Mostrar el tercer dígito como el decimal
-  // Mostrar los dígitos ingresados para la corriente
-  display.setCursor(0, 10);
-  display.print("CORRIENTE: ");
-  for (int i = 0; i < 4; i++) {
-    display.print(corrienteString[i]);
-  }
-  // Mostrar el separador decimal
-  display.print(".");
-  display.print(corrienteString[1]); // Mostrar el segundo dígito como el decimal
-  display.setCursor(0, 20);
-  display.print("EDITAR VALORES: ");
 }
 
 void updateValues(int key) {
@@ -232,3 +349,34 @@ bool updateFloatValues() {
   }
   return false;
 }
+
+void updateRampValues(int key) {
+  if (index < 4) { // Si todavía estamos ingresando los valores de tensión
+    tensString[index] = key; // Almacenar el valor en el arreglo de la tensión
+    listRamp[index] = key - '0'; // Almacenar el valor en la lista de rampa
+  } else if (index >= 4 && index < 6) { // Si estamos ingresando los valores de tiempo
+    corrienteString[index - 4] = key; // Almacenar el valor en el arreglo de tiempo
+    listRamp[index] = key - '0'; // Almacenar el valor en la lista de rampa
+  }
+  index++;
+}
+
+bool updateRampFloatValues() {
+  // Calcular los valores de tensión y tiempo a partir de los valores ingresados en listRamp
+  float Tension2;
+  int Tiempo2;
+  Tension2 = (listRamp[0] * 10 + listRamp[1]) + (listRamp[2] * 0.1) + (listRamp[3] * 0.01);
+  Tiempo2 = (listRamp[4] * 10 + listRamp[5]);
+  
+  // Verificar si los valores están en rango
+  if (Tension2 <= MAX_TENSION && Tiempo2 >= 0) {
+    Tension = Tension2;
+    Tiempo = Tiempo2;
+    Serial.print("TiempoCargado: ");
+    Serial.println(Tiempo);
+    return true; // Los valores están en rango y se cargaron a las variables
+  }
+  return false; // Al menos uno de los valores está fuera de rango
+}
+
+
