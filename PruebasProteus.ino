@@ -47,10 +47,11 @@ void loop() {
   adc1 = ads.readADC_SingleEnded(1);
 
   // Convertir valores a voltaje (referencia de 5V)
-  float voltage0 = adc0 * (5.0 / ADC_RESOLUTION); // Convierte el valor del ADC0 a voltaje
-  float voltage1 = adc1 * (5.0 / ADC_RESOLUTION); // Convierte el valor del ADC1 a voltaje
-  float aux= adc1*(DAC_RESOLUTION/ADC_RESOLUTION); //Calculo auxiliar 
-  int dacValue = aux; // Valor de bits enviados al dac
+  float voltage0 = adc0 * (5.0 / ADC_RESOLUTION);   // Convierte el valor del ADC0 a voltaje
+  float voltage1 = adc1 * (5.0 / ADC_RESOLUTION);   // Convierte el valor del ADC1 a voltaje
+  float aux= adc1*(DAC_RESOLUTION/ADC_RESOLUTION);  //Calculo auxiliar debe hacerse el calculo con floats
+  int dacValue = aux;                               // Valor de bits enviados al dac en int
+  float volt_ref= dacValue*(5.0 / DAC_RESOLUTION);
   // Mostrar valores en el monitor serial OLED
   display.clearDisplay();
   display.setTextSize(1);
@@ -65,9 +66,11 @@ void loop() {
   display.print(adc1);
   display.print("  V: ");
   display.println(voltage1, 3); // Mostrar voltaje con 3 decimales
-   display.setCursor(0, 20);
-  display.print("Salida: ");
+  display.setCursor(0, 20);
+  display.print("DAC: ");
   display.print(dacValue);
+  display.print("  V:");
+  display.println(volt_ref, 3); // Mostrar voltaje con 3 decimales
   display.display();
   dac.setVoltage(dacValue, false); // Enviar valor al DAC
   
