@@ -231,7 +231,7 @@ void SCREEN1() {
   display.print("D: ");
   display.print(Corriente); // Mostrar los dígitos ingresados para la corriente
   display.setCursor(0, 20);
-  display.print("MODO TENSION  #ON");
+  display.print("MODO TENSION");
 }
 
 void SCREEN2() {
@@ -241,7 +241,7 @@ void SCREEN2() {
   display.print("Deseada: ");
   display.print(Corriente); // Mostrar los dígitos ingresados para la tensión
   display.setCursor(0, 20);
-  display.print("MODO CORRIENTE  #ON");
+  display.print("MODO CORRIENTE");
 }
 
 void SCREEN3() {
